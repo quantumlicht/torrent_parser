@@ -50,6 +50,11 @@ class TestParser(unittest.TestCase):
 		self.assertEquals(res, None)
 		# self.assertRaises(ValueError, self.parser.decode, input)
 
+	def test_gibberish(self):
+		input = 'a3ee2:fjkhklae'
+		res = self.parser.decode(input)
+		self.assertEquals(res, None)
+
 	def test_input_file(self):
 		self.parser.readfile(TEST_FILE_SAMPLE)
 		print self.parser.decode()

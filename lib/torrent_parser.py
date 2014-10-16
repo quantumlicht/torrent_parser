@@ -27,6 +27,7 @@ class Printer():
 
 	def warning(self, to_print):
 		print '--- warning: [{0}] ---'.format(to_print)
+
 	def error(self, to_print):
 		print '=== ERROR: [{0}] ==='.format(to_print)
 
@@ -65,8 +66,8 @@ class TorrentParser():
 		if filename is None:
 			filename = self.filename
 		if filename is None:
-			raise ValueError("You need to provide specify an input file either in the readfile method or in the"
-			                "constructor.You can also read a bencoded string with the decode method")
+			raise ValueError("You need to provide specify an input file either in the readfile method or in "
+			                 "the constructor.You can also read a bencoded string with the decode method")
 		with open(filename, 'rb') as f:
 			ret = f.read()
 		self.data = ret
@@ -127,13 +128,14 @@ class TorrentParser():
 				                                 creation_date)
 				self.__return_val['creation date'] = date_string
 		except AttributeError:
-			self.log.warning(
-				"The input provided does not comply with the bittorent metainfo specification. No creation date specified")
+			self.log.warning("The input provided does not comply with the bittorent metainfo specification."
+			                 "No creation date specified")
 
 	def __build_file_hashes(self):
 		"""
 		This interprets the piece length field and calculate the sha1 hash of each pieces.
-		For each file in the torrent we associate the file_pieces_sha1 key to an array containing the sha1 hash of each pieces for this file
+		For each file in the torrent we associate the file_pieces_sha1 key to an array containing the sha1 hash
+		of each pieces for this file
 		:return: None
 		"""
 		try:
@@ -145,13 +147,11 @@ class TorrentParser():
 				length = info.get('length', None)
 
 				if files is not None and length is not None:
-					raise AssertionError(
-						'Meta info does not follow protocol rules. You must specify only one of "files" (multi file)'
-						'or "length" (single file) keys')
+					raise AssertionError('Meta info does not follow protocol rules. You must specify only one of'
+					                     '"files" (multi file) or "length" (single file) keys')
 				elif files is None and length is None:
-					raise AssertionError(
-						'Meta info does not follow protocol rules. You must specify one of "files" (multi file)'
-						'or "length" (single file) keys')
+					raise AssertionError('Meta info does not follow protocol rules. You must specify one of'
+					                     '"files" (multi file) or "length" (single file) keys')
 
 				pieces = (info.get('pieces')).encode('hex')
 
@@ -172,7 +172,7 @@ class TorrentParser():
 					# We have many files
 					for file_data in files:
 						nb_pieces = file_data.get('length') / piece_length
-						nb_pieces = 1 if nb_pieces == 0 else nb_pieces # make sure we always have at least one piece
+						nb_pieces = 1 if nb_pieces == 0 else nb_pieces  # make sure we always have at least one piece
 						pieces_hash = []
 						for piece in xrange(0, nb_pieces):
 							pieces_hash.append(pieces[pos:pos + PROTOCOL_PIECE_LENGTH])
@@ -183,7 +183,8 @@ class TorrentParser():
 					self.__return_val['info']['files'] = rebuilt_files
 				del self.__return_val['info']['pieces']
 		except AttributeError:
-			self.log.warning("The input provided does not comply with the bittorent metainfo specification. No info dictionary specified")
+			self.log.warning("The input provided does not comply with the bittorent metainfo "
+			                 "specification. No info dictionary specified")
 
 	def __get_data_type(self):
 		"""
@@ -227,6 +228,8 @@ class TorrentParser():
 				container.append(val)
 				inner_type, method = self.__get_data_type()
 			except TypeError:
+				if inner_type is None:
+					self.log.debug('Did not receive and of sequence character "e"')
 				raise ValueError("Malformed input")
 		if struct_type == 'l':
 			return container
@@ -238,7 +241,6 @@ class TorrentParser():
 		:param integer: not used
 		:return: the integer that is read. The value read from file is coerced to an int
 		"""
-
 		match = re.match(INT_PATTERN, self.data[self.cur:])
 		val = match.group(1)
 		self.log.debug("_read_int {0}".format(val))
