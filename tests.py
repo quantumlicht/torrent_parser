@@ -2,13 +2,14 @@ import unittest
 from lib.torrent_parser import TorrentParser
 
 
-TEST_FILE = 'The.God.Father.2TPB.torrent'
-# TEST_FILE = 'sample.torrent'
+TEST_FILE_GODFATHER = 'The.God.Father.2TPB.torrent'
+TEST_FILE_SAMPLE = 'sample.torrent'
+TEST_FILE_DISTRICT9 = 'District_9.TPB.torrent'
 class TestParser(unittest.TestCase):
 
 
 	def setUp(self):
-		self.parser = TorrentParser(TEST_FILE)
+		self.parser = TorrentParser(debug_mode=False)
 
 	def test_base_integer(self):
 			# self.parser.dump_content()
@@ -24,6 +25,16 @@ class TestParser(unittest.TestCase):
 		res = self.parser.decode('d3:abc5:abcde3:lmn2:poe')
 		self.assertEqual(res,{'abc':'abcde','lmn':'po'})
 
+	def test_nested_dict(self):
+		res_a = self.parser.decode('d3:abc3:abc1:ad2:ab3:kbae3:lmn2:poe')
+		res_b = self.parser.decode('d3:abc3:abc1:ad2:ab3:kba3:lmn2:poee')
+		self.assertEqual(res_a,{'abc':'abc','a':{'ab':'kba'},'lmn':'po'})
+		self.assertEqual(res_b,{'abc':'abc','a':{'ab':'kba','lmn':'po'}})
+
+	def test_malformed_dict(self):
+		res = self.parser.decode('d3:abc2:ak4:cvbn')
+		self.assertEqual(res, False)
+
 	def test_base_list(self):
 		res = self.parser.decode('l3:abc5:abcde3:lmn2:poe')
 		self.assertEqual(res,['abc','abcde','lmn','po'])
@@ -32,5 +43,14 @@ class TestParser(unittest.TestCase):
 		res_a = self.parser.decode('l3:abcl5:abcde3:lmn2:poe4:cvbne')
 		res_b = self.parser.decode('l3:abc5:abcdel2:mn2:po4:cvbnee')
 		self.assertEqual(res_a,['abc', ['abcde','lmn','po'],'cvbn'])
-		self.assertEqual(res_b,['abc', 'abcde',['mn','po','cvbn']])
+		self.assertEqual(res_b,['abc', 'abcde',['mn','po', 'cvbn']])
 
+
+	def test_input_file(self):
+		self.parser.readfile(TEST_FILE_SAMPLE)
+		self.parser.decode()
+
+	def test_real_torrent_file(self):
+		self.parser.readfile(TEST_FILE_GODFATHER)
+		# self.parser.readfile(TEST_FILE_DISTRICT9)
+		self.parser.decode()
