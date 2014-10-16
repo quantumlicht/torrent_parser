@@ -25,7 +25,7 @@ class Printer():
 		if self.debug_mode:
 			print '=== DEBUG: [{0}] ==='.format(to_print)
 
-	def error(to_print):
+	def error(self, to_print):
 		print '=== ERROR: [{0}] ==='.format(to_print)
 
 
@@ -63,7 +63,7 @@ class TorrentParser():
 		if filename is None:
 			filename = self.filename
 		if filename is None:
-			raise Exception("You need to provide specify an input file either in the readfile method or in the"
+			raise ValueError("You need to provide specify an input file either in the readfile method or in the"
 			                "constructor.You can also read a bencoded string with the decode method")
 		with open(filename, 'rb') as f:
 			ret = f.read()
@@ -89,7 +89,7 @@ class TorrentParser():
 			self.log.debug(self.__return_val)
 			return self.__return_val
 		except ValueError as e:
-			self.log.error("Uncaught Error {0}".format(e))
+			self.log.error("Uncaught Exception: {0}".format(e))
 
 		return self.__return_val
 
@@ -143,18 +143,18 @@ class TorrentParser():
 				length = info.get('length', None)
 
 				if files is not None and length is not None:
-					raise Exception(
+					raise AssertionError(
 						'Meta info does not follow protocol rules. You must specify only one of "files" (multi file)'
 						'or "length" (single file) keys')
 				elif files is None and length is None:
-					raise Exception(
+					raise AssertionError(
 						'Meta info does not follow protocol rules. You must specify one of "files" (multi file)'
 						'or "length" (single file) keys')
 
 				pieces = (info.get('pieces')).encode('hex')
 
 				if len(pieces) % PROTOCOL_PIECE_LENGTH != 0:
-					raise Exception("Malformed pieces segment. It should be a multiple of 20")
+					raise AssertionError("Malformed pieces segment. It should be a multiple of 20")
 
 				pos = 0
 				if length:
@@ -170,7 +170,7 @@ class TorrentParser():
 					# We have many files
 					for file_data in files:
 						nb_pieces = file_data.get('length') / piece_length
-						nb_pieces = 1 if nb_pieces == 0 else nb_pieces
+						nb_pieces = 1 if nb_pieces == 0 else nb_pieces # make sure we always have at least one piece
 						pieces_hash = []
 						for piece in xrange(0, nb_pieces):
 							pieces_hash.append(pieces[pos:pos + PROTOCOL_PIECE_LENGTH])
@@ -181,8 +181,7 @@ class TorrentParser():
 					self.__return_val['info']['files'] = rebuilt_files
 				del self.__return_val['info']['pieces']
 		except AttributeError:
-			self.log.error(
-				"The input provided does not comply with the bittorent metainfo specification. No info dictionary specified")
+			self.log.error("The input provided does not comply with the bittorent metainfo specification. No info dictionary specified")
 
 	def __get_data_type(self):
 		"""
@@ -204,7 +203,7 @@ class TorrentParser():
 			return int, self.__read_int
 		elif type_code == 'e':  # end of a sequence
 			self.cur += 1
-			return None, None
+			return 'e', None
 		elif type_code in string.digits:  # if we encounter a digit, this means we are reading a string
 			return str, self.__read_string
 		else:
@@ -220,10 +219,13 @@ class TorrentParser():
 		container = list()
 		data_type, method = self.__get_data_type()
 		inner_type = data_type
-		while inner_type is not None:
-			val = method(inner_type)
-			container.append(val)
-			inner_type, method = self.__get_data_type()
+		while inner_type != 'e':
+			try:
+				val = method(inner_type)
+				container.append(val)
+				inner_type, method = self.__get_data_type()
+			except TypeError:
+				raise ValueError("Malformed input")
 		if struct_type == 'l':
 			return container
 		elif struct_type == 'd':
