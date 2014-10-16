@@ -23,8 +23,10 @@ class Printer():
 
 	def debug(self, to_print):
 		if self.debug_mode:
-			print '=== DEBUG: [{0}] ==='.format(to_print)
+			print 'debug: [{0}] '.format(to_print)
 
+	def warning(self, to_print):
+		print '--- warning: [{0}] ---'.format(to_print)
 	def error(self, to_print):
 		print '=== ERROR: [{0}] ==='.format(to_print)
 
@@ -125,7 +127,7 @@ class TorrentParser():
 				                                 creation_date)
 				self.__return_val['creation date'] = date_string
 		except AttributeError:
-			self.log.error(
+			self.log.warning(
 				"The input provided does not comply with the bittorent metainfo specification. No creation date specified")
 
 	def __build_file_hashes(self):
@@ -181,7 +183,7 @@ class TorrentParser():
 					self.__return_val['info']['files'] = rebuilt_files
 				del self.__return_val['info']['pieces']
 		except AttributeError:
-			self.log.error("The input provided does not comply with the bittorent metainfo specification. No info dictionary specified")
+			self.log.warning("The input provided does not comply with the bittorent metainfo specification. No info dictionary specified")
 
 	def __get_data_type(self):
 		"""

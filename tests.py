@@ -52,9 +52,9 @@ class TestParser(unittest.TestCase):
 
 	def test_input_file(self):
 		self.parser.readfile(TEST_FILE_SAMPLE)
-		self.parser.decode()
+		print self.parser.decode()
 
 	def test_real_torrent_file(self):
 		self.parser.readfile(TEST_FILE_GODFATHER)
 		# self.parser.readfile(TEST_FILE_DISTRICT9)
-		self.parser.decode()
+		print self.parser.decode()
