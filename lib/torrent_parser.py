@@ -1,43 +1,65 @@
 import re
 import string
-from datetime import datetime
 import time
-import pprint
 
 INT_PATTERN = re.compile("(^-?\d+)e?(.*)")
 STR_PATTERN = re.compile("^(\d+):(.*)")
 PIECES_KEY = 'pieces'
 CREATION_DATE_KEY = 'creation date'
+PROTOCOL_PIECE_LENGTH = 20
 
-pp = pprint.PrettyPrinter(indent=3)
+
 class Printer():
-	def __init__(self, debug = False):
+	"""
+	Small util to print to console
+	"""
+
+	def __init__(self, debug=False):
+		"""
+		:param debug: If we should print debug statements or not
+		:return: None
+		"""
 		self.debug_mode = debug
 
 	def debug(self, to_print):
 		if self.debug_mode:
-			print to_print
+			print '=== DEBUG: [{0}] ==='.format(to_print)
 
-	def error(self, to_print):
-		print '===ERROR [{0}]=='.format(to_print)
+	def error(to_print):
+		print '=== ERROR: [{0}] ==='.format(to_print)
+
 
 class TorrentParser():
+	"""
+	 A class to parse a Bittorrent file to extract the meta info for a torrent
+	"""
+
 	def __init__(self, filename=None, debug_mode=False):
+		"""
+		:param filename: You can specify
+		:param debug_mode:
+		:return: None
+		"""
 		self.log = Printer(debug=debug_mode)
-		self.cur = 0
-		self.return_val = None
+		self.cur = 0  # The cursor indicates the position in the file
+		self.__return_val = None
 		self.filename = None
 		self.data = None
 		if filename is not None:
 			self.filename = filename
 			self.readfile(filename)
 
-	#===================================================================================================================
+	# ===================================================================================================================
 	# PUBLIC METHODS
-	#===================================================================================================================
+	# ===================================================================================================================
 
 	def readfile(self, filename=None):
-		ret = None
+
+		"""
+		:param filename: the string path to the file we want to parse
+		:return: Returns nothing but save the read file into the data attribute
+		"""
+
 		if filename is None:
 			filename = self.filename
 		if filename is None:
@@ -48,172 +70,182 @@ class TorrentParser():
 		self.data = ret
 
 	def decode(self, data=None):
-		self.cur = 0
+
+		"""
+		:param data: if we want to decode a bencoded string instead of a file
+		:return: the parsed structure contained into return_val
+		"""
+
+		self.cur = 0  # reset the cursor so we can use the parser for as many file as we want
 
 		if data is not None:
 			self.data = data
 		try:
-			(data_type, method) = self._get_data_type()
-			self.return_val = method(data_type)
-			self._build_file_hashes()
-			self._build_creation_date()
+			(data_type, method) = self.__get_data_type()
+			self.__return_val = method(data_type)
+			self.__build_file_hashes()
+			self.__build_creation_date()
 
-			self.log.debug(self.return_val)
-			return self.return_val
+			self.log.debug(self.__return_val)
+			return self.__return_val
 		except ValueError as e:
 			self.log.error("Uncaught Error {0}".format(e))
 
-		return self.return_val
-
-	# print self.result
-	# return self.result
+		return self.__return_val
 
 	#===================================================================================================================
 	# DEBUG UTIL METHODS
 	#===================================================================================================================
 
-	def _show_ahead(self, ahead=60):
+	def __show_ahead(self, ahead=60):
+		"""
+		Small util to see the next character in the file to understand if the file is being parsed correctly
+		:param ahead: the distance after the cursor we want to inspect the file content
+		:return: nothing, simply prints out the result
+		"""
 		show = ''
 		if self.cur > len(self.data):
 			return show
 		for i in self.data[self.cur:self.cur + ahead]:
 			show += i
-		print 'show_ahead {0}'.format(show)
+		self.log.debug('show_ahead {0}'.format(show))
 
 	#===================================================================================================================
 	# PRIVATE METHODS
 	#===================================================================================================================
-	def _build_creation_date(self):
+	def __build_creation_date(self):
+		"""
+		Prettyfies the creation date field in the torrent file
+		:return: None
+		"""
 		try:
-			creation_date = self.return_val.get('creation date')
-			date_string = "{0} ({1})".format(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(creation_date))),creation_date)
-			self.return_val['creation date'] = date_string
+			creation_date = self.__return_val.get('creation date', None)
+			if creation_date is not None:
+				date_string = "{0} ({1})".format(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(creation_date))),
+				                                 creation_date)
+				self.__return_val['creation date'] = date_string
 		except AttributeError:
-			self.log.error("The input provided does not comply with the bittorent metainfo specification. No creation date specified")
+			self.log.error(
+				"The input provided does not comply with the bittorent metainfo specification. No creation date specified")
 
-	def _build_file_hashes(self):
+	def __build_file_hashes(self):
+		"""
+		This interprets the piece length field and calculate the sha1 hash of each pieces.
+		For each file in the torrent we associate the file_pieces_sha1 key to an array containing the sha1 hash of each pieces for this file
+		:return: None
+		"""
 		try:
-			info = self.return_val.get('info', None)
+			info = self.__return_val.get('info', None)
 			if info is not None:
-				piece_length = info.get('piece length', 262144) # 262144 bytes is the default piece size for Version > 3.2
+				piece_length = info.get('piece length',
+				                        262144)  # 262144 bytes is the default piece size for Version > 3.2
 				files = info.get('files', None)
 				length = info.get('length', None)
 
 				if files is not None and length is not None:
-					raise Exception("Meta info does not follow protocol rules. You must specify only one of files(multi file)"
-					                "or length(single file) keys")
+					raise Exception(
+						'Meta info does not follow protocol rules. You must specify only one of "files" (multi file)'
+						'or "length" (single file) keys')
 				elif files is None and length is None:
-					raise Exception("Meta info does not follow protocol rules. You must specify one of files(multi file)"
-					                "or length(single file) keys")
+					raise Exception(
+						'Meta info does not follow protocol rules. You must specify one of "files" (multi file)'
+						'or "length" (single file) keys')
 
 				pieces = (info.get('pieces')).encode('hex')
-				pos = 0
 
+				if len(pieces) % PROTOCOL_PIECE_LENGTH != 0:
+					raise Exception("Malformed pieces segment. It should be a multiple of 20")
+
+				pos = 0
 				if length:
 					#We have a single file torrent
 					pieces_hash = []
 					while pos < len(pieces):
-						pieces_hash.append(pieces[pos:pos + 20])
-						pos += 20
+						pieces_hash.append(pieces[pos:pos + PROTOCOL_PIECE_LENGTH])
+						pos += PROTOCOL_PIECE_LENGTH
 
-					self.return_val['info']['file_pieces_sha1'] = pieces_hash
+					self.__return_val['info']['file_pieces_sha1'] = pieces_hash
 				elif files:
 					rebuilt_files = []
 					# We have many files
-					for file in files:
-						nb_pieces = file.get('length') / piece_length
+					for file_data in files:
+						nb_pieces = file_data.get('length') / piece_length
 						nb_pieces = 1 if nb_pieces == 0 else nb_pieces
 						pieces_hash = []
 						for piece in xrange(0, nb_pieces):
-							pieces_hash.append(pieces[pos:pos + 20])
-							pos += 20
-						file['file_pieces_sha1'] = pieces_hash
+							pieces_hash.append(pieces[pos:pos + PROTOCOL_PIECE_LENGTH])
+							pos += PROTOCOL_PIECE_LENGTH
+						file_data['file_pieces_sha1'] = pieces_hash
 
-						rebuilt_files.append(file)
-					self.return_val['info']['files'] = rebuilt_files
-				del self.return_val['info']['pieces']
+						rebuilt_files.append(file_data)
+					self.__return_val['info']['files'] = rebuilt_files
+				del self.__return_val['info']['pieces']
 		except AttributeError:
-			print "The input provided does not comply with the bittorent metainfo specification. No info dictionary specified"
+			self.log.error(
+				"The input provided does not comply with the bittorent metainfo specification. No info dictionary specified")
 
-	def _read(self, pattern):
-		# self._show_ahead()
-		# print "_read pattern {0}".format(pattern.pattern)
-		match = re.match(pattern, self.data[self.cur:])
-		# print "_read groups {0}".format(match.groups())
-		# print "_read span {0}, {1}".format(match.span(1), match.span(2))
-		# print "_read group(1) {0}".format(int(match.group(1)))
-		self.cur += match.span(2)[0]
-		item = self.data[self.cur: self.cur + int(match.group(1))]
-		self.cur += int(match.group(1))
-		# print "_read item {0}".format(item)
-		return item
-
-	def _get_data_type(self):
-		# self._show_ahead()
+	def __get_data_type(self):
+		"""
+		We parse the torrent file to determine its structure
+		:return: None
+		"""
 		if self.cur > len(self.data) - 1:
 			return None, None
 		type_code = self.data[self.cur]
 
-		if type_code == 'l':
+		if type_code == 'l':  # l means its a list. it's closed by the character e
 			self.cur += 1
-			return 'l', self._read_arr
-		elif type_code == 'd':
+			return 'l', self.__read_arr
+		elif type_code == 'd':  # d means its a list. it's closed by the character e
 			self.cur += 1
-			return 'd', self._read_arr
-		elif type_code == 'i':
+			return 'd', self.__read_arr
+		elif type_code == 'i':  # l means its an integer. it's closed by the character e, can also accept negative numbers
 			self.cur += 1
-			return int, self._read_int
-		elif type_code == 'e':
+			return int, self.__read_int
+		elif type_code == 'e':  # end of a sequence
 			self.cur += 1
 			return None, None
-		elif type_code in string.digits:
-			return str, self._read_string
+		elif type_code in string.digits:  # if we encounter a digit, this means we are reading a string
+			return str, self.__read_string
 		else:
 			raise ValueError("The data provided cannot be interpreted as bencoding")
 
-	def _read_arr(self, struct_type):
+	def __read_arr(self, struct_type):
+		"""
+		method that is invoked when we encouter a dict or a list. We populate a list that will get parsed into
+		a list or a dict when we encouter the ending character
+		:param struct_type: the type of input that we have. Will help us differentiate between dict and list
+		:return: The structure that was created. either dict or list. this can create nested lists and dicts.
+		"""
 		container = list()
-		data_type, method = self._get_data_type()
+		data_type, method = self.__get_data_type()
 		inner_type = data_type
 		while inner_type is not None:
 			val = method(inner_type)
 			container.append(val)
-			inner_type, method = self._get_data_type()
+			inner_type, method = self.__get_data_type()
 		if struct_type == 'l':
 			return container
 		elif struct_type == 'd':
 			return {i: j for i, j in zip(container[::2], container[1::2])}
 
-	def _read_int(self, integer):
+	def __read_int(self, integer):
+		"""
+		:param integer: not used
+		:return: the integer that is read. The value read from file is coerced to an int
+		"""
+
 		match = re.match(INT_PATTERN, self.data[self.cur:])
 		val = match.group(1)
 		self.log.debug("_read_int {0}".format(val))
-		self.cur += match.span(2)[0]
+		self.cur += match.span(2)[0]  # move cursor past the actual length string
 		return int(val)
 
-	def _read_pieces(self):
-		match = re.match(STR_PATTERN, self.data[self.cur:])
-		str_length = int(match.group(1))
-		self.log.debug("_read_pieces str_length {0}".format(str_length))
-		self.cur += match.span(2)[0]  # move cursor past the actual length string
-
-		if str_length % 20 != 0:
-			raise Exception("Malformed pieces segment. It should be a multiple of 20")
-
-		self.str_pieces = (self.data[self.cur: self.cur + int(match.group(1))]).encode('hex')
-		self.cur += str_length
-
-		self._show_ahead()
-		hashes = []
-		pos = 0
-		hash_string = self.str_pieces.encode('hex')
-		self.log.debug("number of hash string {1} {0}".format(len(hash_string) / 20, len(hash_string)))
-		while pos < len(hash_string):
-			hashes.append(hash_string[pos:pos + 20])
-			pos += 20
-		return self.str_pieces
-
-	def _read_string(self, str):
+	def __read_string(self, str):
+		"""
+		:param str: not used
+		:return: the parsed string
+		"""
 		match = re.match(STR_PATTERN, self.data[self.cur:])
 		str_length = int(match.group(1))
 		self.cur += match.span(2)[0]  # move cursor past the actual length string
